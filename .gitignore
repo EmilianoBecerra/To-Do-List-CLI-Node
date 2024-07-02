@@ -1,0 +1,4 @@
+node_modules/
+BD
+.prettierrc
+eslint.config.mjs
