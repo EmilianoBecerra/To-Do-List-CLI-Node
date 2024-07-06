@@ -23,13 +23,15 @@ async function get_tasks() {
   const tasks_in_DB = await fs_promises.readFile(pathFile, {
     encoding: "utf8",
   });
-  const tasks_array = tasks_in_DB.split("\n");
-  tasks_array.pop();
-  tasks_array.forEach((element) => {
-    if (tasks_array.length > 0 && tasks_array.length !== tasks.length) {
-      tasks.push(JSON.parse(element));
-    }
-  });
+  const tasks_array_DB = tasks_in_DB.split("\n");
+  tasks_array_DB.pop();
+  tasks = [];
+  if(tasks_array_DB.lenght !== tasks.length){
+    tasks_array_DB.forEach((element)=> {
+      const element_parsed = JSON.parse(element);
+      tasks.push(element_parsed);
+    });
+  }
 }
 
 async function create_DB() {
@@ -61,7 +63,6 @@ async function questionForTask() {
     console.clear();
     rl.question(notice.bold("Ingrese una tarea: "), (answer) => {
       add_task_DB(answer);
-      tasks.shift();
       console.log(success("Tarea creada exitosamente!"));
       resolve();
     });
@@ -140,7 +141,7 @@ async function save_tasks() {
 async function completeTask() {
   if (tasks.length >= 1) {
     console.clear();
-    console.log(clc.bgGreen.blackBright('    COMPLETAR TAREA     '));
+    console.log(clc.bgGreen.blackBright("    COMPLETAR TAREA     "));
     await get_tasks_list();
     await new Promise((resolve) => {
       rl.question("Digita el numero de la tarea*: ", (answer) => {

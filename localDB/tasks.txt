@@ -1,3 +1,0 @@
-{"id":"162c37ec-8a6d-446c-bea5-dd852c44c6c4","fecha":"06-07-2024","task":"Hola pepe","completed":false}
-{"id":"99f801d7-1f9b-4351-9424-32c1aa8a0b46","fecha":"06-07-2024","task":"Como andas pepe?","completed":true}
-{"id":"b019b23d-d797-4315-abd6-e7a70b7cde6f","fecha":"06-07-2024","task":"Genial!!!!!","completed":true}
