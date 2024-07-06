@@ -5,13 +5,14 @@ const fs_promises = require("fs").promises;
 const { format } = require("date-fns");
 const clc = require("cli-color");
 const path = require("path");
+const { v4: uuid } = require("uuid");
 
 const { stdin: input, stdout: output } = require("node:process");
 const rl = readline.createInterface({ input, output });
 
 let tasks = [];
-const pathBD = path.join(__dirname, "localBD");
-const pathFile = path.join(__dirname, "localBD", "tasks.txt");
+const pathDB = path.join(__dirname, "localDB");
+const pathFile = path.join(__dirname, "localDB", "tasks.txt");
 const error = clc.red.bold;
 const warn = clc.yellow;
 const notice = clc.blue;
@@ -19,56 +20,49 @@ const success = clc.green.bold;
 const date_time = `${format(new Date(), "dd-MM-yyyy")}`;
 
 async function get_tasks() {
-  const tasks_in_BD = await fs_promises.readFile(pathFile, { encoding: "utf8", });
-  const tasks_array = tasks_in_BD.split(";");
-  if (tasks_array.length - 1 !== tasks.length) {
-    load_tasks();
-  }
+  const tasks_in_DB = await fs_promises.readFile(pathFile, {
+    encoding: "utf8",
+  });
+  const tasks_array = tasks_in_DB.split("\n");
+  tasks_array.pop();
+  tasks_array.forEach((element) => {
+    if (tasks_array.length > 0 && tasks_array.length !== tasks.length) {
+      tasks.push(JSON.parse(element));
+    }
+  });
 }
 
-async function load_tasks() {
+async function create_DB() {
   try {
-    if (!fs.existsSync(pathBD)) {
-      fs.mkdirSync(pathBD);
+    if (!fs.existsSync(pathDB)) {
+      fs.mkdirSync(pathDB);
       fs.openSync(pathFile, "w");
     } else if (!fs.existsSync(pathFile)) {
       fs.openSync(pathFile, "w");
-    } else {
-      const tasks_in_BD = await fs_promises.readFile(pathFile, { encoding: "utf8", });
-      if (tasks_in_BD.trim() !== "") {
-        const tasks_array = tasks_in_BD.split(";");
-        tasks_array.forEach((el) => {
-          if (el.trim() !== "") {
-            try {
-              tasks.push(JSON.parse(el));
-            } catch(error) {
-              console.log('Error in load_tasks bd', error)
-            }
-          }
-        });
-      }
     }
   } catch (error) {
-    console.log("Error in load_tasks:", error);
+    console.log("Error in create_DB:", error);
   }
 }
 
-async function add_task_bd(task) {
+async function add_task_DB(answer) {
   try {
     await fs_promises.appendFile(
       pathFile,
-      `{"fecha":"${date_time}","task":"${task}","completed":${false}};`
+      `{"id":"${uuid()}","fecha":"${date_time}","task":"${answer}","completed":${false}}\n`,
     );
   } catch (error) {
-    console.error('Error in add_task_bd', error);
+    console.error("Error in add_task_DB", error);
   }
 }
 
 async function questionForTask() {
   return new Promise((resolve) => {
+    console.clear();
     rl.question(notice.bold("Ingrese una tarea: "), (answer) => {
-      add_task_bd(answer);
-      console.log(success("Tarea creada exitosamente!!"));
+      add_task_DB(answer);
+      tasks.shift();
+      console.log(success("Tarea creada exitosamente!"));
       resolve();
     });
   });
@@ -80,25 +74,27 @@ async function addTask() {
     try {
       await questionForTask();
       await new Promise((resolve) => {
-        rl.question(notice.bold("Quiere ingresar otra tarea? [s/n]"),
+        rl.question(
+          notice.bold("Quiere ingresar otra tarea? [s/n]"),
           (answer) => {
             if (answer.toLowerCase() === "n") {
               flag = false;
               console.clear();
             }
             resolve();
-          });
+          },
+        );
       });
     } catch (error) {
-      console.log('Error in addTask', error);
+      console.log("Error in addTask", error);
       flag = false;
     }
   }
-  await get_tasks();
   displayMenu();
 }
 
 async function listTasks() {
+  console.clear();
   await get_tasks();
   if (tasks.length === 0) {
     console.log(notice("No hay tareas por hacer"));
@@ -113,26 +109,47 @@ async function listTasks() {
       }
     });
   }
-  displayMenu();
+  rl.question(clc.bgBlue.white("\nSalir lista de tareas [s/n]"), (answer) => {
+    if (answer === "s" || answer === "S") {
+      console.clear();
+      displayMenu();
+    }
+  });
+}
+
+async function get_tasks_list() {
+  tasks.forEach((task, index) => {
+    let status = task.completed ? "✅" : "❌";
+    if (task.completed) {
+      console.log(clc.green(`${index + 1}. ${task.task} - ${status}`));
+    } else {
+      console.log(error(`${index + 1}. ${task.task} - ${status}`));
+    }
+  });
 }
 
 async function save_tasks() {
   try {
-    const tasks_to_save = tasks.map(task => JSON.stringify(task)).join(";");
-    await fs_promises.writeFile(pathFile, tasks_to_save + ';');
+    const tasks_to_save = tasks.map((task) => JSON.stringify(task)).join("\n");
+    await fs_promises.writeFile(pathFile, tasks_to_save + "\n");
   } catch (error) {
-    console.error('Error saving tasks:', error);
+    console.error("Error saving tasks:", error);
   }
 }
 
 async function completeTask() {
   if (tasks.length >= 1) {
+    console.clear();
+    console.log(clc.bgGreen.blackBright('    COMPLETAR TAREA     '));
+    await get_tasks_list();
     await new Promise((resolve) => {
       rl.question("Digita el numero de la tarea*: ", (answer) => {
         const indexTask = Number(answer) - 1;
         if (indexTask >= 0 && indexTask < tasks.length) {
           tasks[indexTask].completed = true;
-          console.log(warn("Se completó la tarea"));
+          console.clear();
+          console.log(warn("\nSe completó la tarea\n"));
+          displayMenu();
         } else {
           console.log("Número de tarea inválido");
         }
@@ -140,25 +157,35 @@ async function completeTask() {
         resolve();
       });
     });
-  } else {
-    console.log(error("No hay tareas en tu lista"));
   }
-  displayMenu();
+  if (tasks.length === 0) {
+    return new Promise((resolve) => {
+      console.clear();
+      console.log("");
+      console.log(clc.bgRed("No hay tareas para completar"));
+      resolve();
+      console.log("");
+
+      displayMenu();
+    });
+  }
 }
 
 async function clearList() {
   try {
     if (fs.existsSync(pathFile)) {
       await fs_promises.unlink(pathFile);
+      console.clear();
       console.log(success("Se eliminaron todos los elementos de la lista"));
-      fs.writeFileSync(pathFile, '');
+      fs.writeFileSync(pathFile, "");
       tasks = [];
     } else {
+      console.clear();
       console.log(clc.italic("No hay elementos en la lista"));
       displayMenu();
     }
   } catch (error) {
-    console.log('Error clearList', error(error))
+    console.log("Error clearList", error(error));
   }
   displayMenu();
 }
@@ -201,6 +228,6 @@ function chooseOption() {
   });
 }
 
-load_tasks().then(() => {
-  displayMenu();
-});
+create_DB();
+get_tasks();
+displayMenu();
