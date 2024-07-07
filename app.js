@@ -12,25 +12,26 @@ const rl = readline.createInterface({ input, output });
 
 let tasks = [];
 const pathDB = path.join(__dirname, "localDB");
-const pathFile = path.join(__dirname, "localDB", "tasks.txt");
-const error = clc.red.bold;
+const path_file = path.join(__dirname, "localDB", "tasks.txt");
+const err = clc.red.bold;
 const warn = clc.yellow;
 const notice = clc.blue;
 const success = clc.green.bold;
 const date_time = `${format(new Date(), "dd-MM-yyyy")}`;
 
 async function get_tasks() {
-  const tasks_in_DB = await fs_promises.readFile(pathFile, {
-    encoding: "utf8",
-  });
-  const tasks_array_DB = tasks_in_DB.split("\n");
-  tasks_array_DB.pop();
-  tasks = [];
-  if(tasks_array_DB.lenght !== tasks.length){
-    tasks_array_DB.forEach((element)=> {
-      const element_parsed = JSON.parse(element);
-      tasks.push(element_parsed);
+  try {
+    tasks = [];
+    const tasks_in_DB = await fs_promises.readFile(path_file, {
+      encoding: "utf8",
     });
+    const tasks_array_DB = tasks_in_DB.split("\n");
+    tasks_array_DB.pop();
+    if (tasks_array_DB.length !== tasks.length) {
+      tasks = tasks_array_DB.map((element) => JSON.parse(element));
+    }
+  } catch (error) {
+    console.log("get_tasks error", error);
   }
 }
 
@@ -38,38 +39,42 @@ async function create_DB() {
   try {
     if (!fs.existsSync(pathDB)) {
       fs.mkdirSync(pathDB);
-      fs.openSync(pathFile, "w");
-    } else if (!fs.existsSync(pathFile)) {
-      fs.openSync(pathFile, "w");
+      fs.openSync(path_file, "w");
+    } else if (!fs.existsSync(path_file)) {
+      fs.openSync(path_file, "w");
     }
   } catch (error) {
-    console.log("Error in create_DB:", error);
+    console.log("Error create_DB:", error);
   }
 }
 
 async function add_task_DB(answer) {
   try {
     await fs_promises.appendFile(
-      pathFile,
+      path_file,
       `{"id":"${uuid()}","fecha":"${date_time}","task":"${answer}","completed":${false}}\n`,
     );
   } catch (error) {
-    console.error("Error in add_task_DB", error);
+    console.error("Error add_task_DB", error);
   }
 }
 
 async function questionForTask() {
-  return new Promise((resolve) => {
-    console.clear();
-    rl.question(notice.bold("Ingrese una tarea: "), (answer) => {
-      add_task_DB(answer);
-      console.log(success("Tarea creada exitosamente!"));
-      resolve();
+  try {
+    return new Promise((resolve) => {
+      console.clear();
+      rl.question(notice.bold("Ingrese una tarea: "), (answer) => {
+        add_task_DB(answer);
+        console.log(success("Tarea creada exitosamente!"));
+        resolve();
+      });
     });
-  });
+  } catch (error) {
+    console.log("Error questionForTask", error);
+  }
 }
 
-async function addTask() {
+async function add_task() {
   let flag = true;
   while (flag) {
     try {
@@ -87,33 +92,33 @@ async function addTask() {
         );
       });
     } catch (error) {
-      console.log("Error in addTask", error);
+      console.log("Error addTask", error);
       flag = false;
     }
   }
-  displayMenu();
+  display_menu();
 }
 
-async function listTasks() {
+async function list_tasks() {
   console.clear();
   await get_tasks();
   if (tasks.length === 0) {
-    console.log(notice("No hay tareas por hacer"));
+    console.log(err("No hay tareas por hacer"));
   } else {
     console.log(warn("*--- Lista de tareas ---*"));
     tasks.forEach((task, index) => {
       let status = task.completed ? "✅" : "❌";
       if (task.completed) {
-        console.log(clc.green(`${index + 1}. ${task.task} - ${status}`));
+        console.log(success(`${index + 1}. ${task.task} - ${status}`));
       } else {
-        console.log(error(`${index + 1}. ${task.task} - ${status}`));
+        console.log(err(`${index + 1}. ${task.task} - ${status}`));
       }
     });
   }
-  rl.question(clc.bgBlue.white("\nSalir lista de tareas [s/n]"), (answer) => {
-    if (answer === "s" || answer === "S") {
+  rl.question(clc.bgBlue.white("\nSalir lista de tareas [s]"), (answer) => {
+    if (answer.toLowerCase() === "s") {
       console.clear();
-      displayMenu();
+      display_menu();
     }
   });
 }
@@ -124,7 +129,7 @@ async function get_tasks_list() {
     if (task.completed) {
       console.log(clc.green(`${index + 1}. ${task.task} - ${status}`));
     } else {
-      console.log(error(`${index + 1}. ${task.task} - ${status}`));
+      console.log(err(`${index + 1}. ${task.task} - ${status}`));
     }
   });
 }
@@ -132,27 +137,29 @@ async function get_tasks_list() {
 async function save_tasks() {
   try {
     const tasks_to_save = tasks.map((task) => JSON.stringify(task)).join("\n");
-    await fs_promises.writeFile(pathFile, tasks_to_save + "\n");
+    await fs_promises.writeFile(path_file, tasks_to_save + "\n");
   } catch (error) {
     console.error("Error saving tasks:", error);
   }
 }
 
-async function completeTask() {
+async function complete_task() {
+  await get_tasks();
   if (tasks.length >= 1) {
     console.clear();
     console.log(clc.bgGreen.blackBright("    COMPLETAR TAREA     "));
     await get_tasks_list();
     await new Promise((resolve) => {
-      rl.question("Digita el numero de la tarea*: ", (answer) => {
+      rl.question(notice.bold("Digita el numero de la tarea: "), (answer) => {
         const indexTask = Number(answer) - 1;
         if (indexTask >= 0 && indexTask < tasks.length) {
           tasks[indexTask].completed = true;
           console.clear();
-          console.log(warn("\nSe completó la tarea\n"));
-          displayMenu();
+          console.log(success("\nSe completó la tarea\n"));
+          display_menu();
         } else {
-          console.log("Número de tarea inválido");
+          console.clear();
+          console.log(err("Número de tarea inválido"));
         }
         save_tasks();
         resolve();
@@ -166,56 +173,54 @@ async function completeTask() {
       console.log(clc.bgRed("No hay tareas para completar"));
       resolve();
       console.log("");
-
-      displayMenu();
+      display_menu();
     });
   }
 }
 
-async function clearList() {
+async function clear_list() {
   try {
-    if (fs.existsSync(pathFile)) {
-      await fs_promises.unlink(pathFile);
+    if (fs.existsSync(path_file)) {
+      await fs_promises.unlink(path_file);
       console.clear();
       console.log(success("Se eliminaron todos los elementos de la lista"));
-      fs.writeFileSync(pathFile, "");
-      tasks = [];
+      fs.writeFileSync(path_file, "");
     } else {
       console.clear();
       console.log(clc.italic("No hay elementos en la lista"));
-      displayMenu();
+      display_menu();
     }
   } catch (error) {
-    console.log("Error clearList", error(error));
+    console.log("Error clearList", error);
   }
-  displayMenu();
+  display_menu();
 }
 
-function displayMenu() {
-  console.log(clc.bgCyanBright.bold.blackBright("TODO APP"));
-  console.log("1. Agregar tarea");
-  console.log("2. Listar tareas");
-  console.log("3. Completar tarea");
-  console.log("4. Limpiar lista");
-  console.log(error("5. Salir"));
-  console.log("");
-  chooseOption();
+function display_menu() {
+  console.log(clc.bgCyanBright.bold.blackBright("      TODO APP      "));
+  console.log(`
+1. Agregar tarea
+2. Listar tareas
+3. Completar tarea
+4. Limpiar lista`);
+  console.log(err("5. Salir\n"));
+  choose_option();
 }
 
-function chooseOption() {
-  rl.question(clc.bgMagentaBright("*Digita una opción: "), (choice) => {
+function choose_option() {
+  rl.question(clc.bgMagentaBright("Digita una opción: "), (choice) => {
     switch (choice) {
       case "1":
-        addTask();
+        add_task();
         break;
       case "2":
-        listTasks();
+        list_tasks();
         break;
       case "3":
-        completeTask();
+        complete_task();
         break;
       case "4":
-        clearList();
+        clear_list();
         break;
       case "5":
         console.log("Adios");
@@ -223,7 +228,7 @@ function chooseOption() {
         break;
       default:
         console.log(error.bgRed("El digito es inválido [1-4]"));
-        displayMenu();
+        display_menu();
         break;
     }
   });
@@ -231,4 +236,4 @@ function chooseOption() {
 
 create_DB();
 get_tasks();
-displayMenu();
+display_menu();
